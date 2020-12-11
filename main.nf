@@ -3,17 +3,17 @@
 // Copyright (C) 2020 Tong LI <tongli.bioinfo@protonmail.com>
 
 params.ome_tiffs = "/nfs/team283_imaging/AC_LNG/0_CARTANA_ISS_I2B-panel/OB01011_FF_Lung_CARTANA_I2B_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"
+params.out_dir = "./"
 
 process fake_anchor_chs {
     echo true
-    /*publishDir "./", mode:"copy"*/
     container "./env.sif"
 
     input:
     file ome_tif from channel.fromPath(params.ome_tiffs)
 
     output:
-    file "*anchors.ome.tif" into tif_with_anchor
+    file "*anchors.ome.tif" into tif_with_anchor, tif_with_anchor_for_pyramid
 
     script:
     """
@@ -21,17 +21,55 @@ process fake_anchor_chs {
     """
 }
 
-process tif_2_raw {
+process build_pyramid_raw {
+    container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/img-bftools.sif"
+    publishDir "./out", mode:"copy"
+
+    input:
+    file tif from tif_with_anchor_for_pyramid
+
+    output:
+    tuple val(stem), file("${stem}*pyramid*.ome.tif")
+
+    script:
+    stem = tif.baseName
+    """
+    export _JAVA_OPTIONS="-Xmx128g"
+    /bftools/bftools/bfconvert -pyramid-resolutions 5 -pyramid-scale 2 ${tif} ${stem}_pyramid_5.ome.tif
+    """
+}
+
+process opt_flow_register {
+    echo true
+    container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/opt-reg.sif"
+    /*publishDir "./out", mode:"copy"*/
 
     input:
     file tif from tif_with_anchor
 
     output:
-    tuple val(stem), file("${stem}*pyramid*.ome.tif") into zarrs
+    file "*registered.tif" into opt_registered
+
+    script:
+    """
+    python3 /home/ubuntu/Documents/opt_flow_reg/opt_flow_reg.py -i "${tif}" -c "anchor" -o ./ -n 14
+    """
+}
+
+process build_pyramid {
+    container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/img-bftools.sif"
+    publishDir "./out", mode:"copy"
+
+    input:
+    file tif from opt_registered
+
+    output:
+    tuple val(stem), file("${stem}*pyramid*.ome.tif")
 
     script:
     stem = tif.baseName
     """
-    bfconvert -pyramid-resolutions 5 -pyramid-scale 2 /nfs/team283_imaging/JSP_HSS/playground_Tong/gmm_decoding_nf_out/out_with_anchors.ome.tif /nfs/team283_imaging/JSP_HSS/playground_Tong/gmm_decoding_nf_out/out_with_anchors_pyramid_5.ome.tif
+    export _JAVA_OPTIONS="-Xmx128g"
+    /bftools/bftools/bfconvert -pyramid-resolutions 5 -pyramid-scale 2 ${tif} ${stem}_pyramid_5.ome.tif
     """
 }

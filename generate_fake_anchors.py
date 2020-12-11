@@ -99,7 +99,7 @@ def main(args):
     updated_md = update_ome_xml_for_fake_channels(ome_string)
 
     clean_xml = xml_cleanup(updated_md.to_xml())
-    meta = ET.tostring(clean_xml)
+    meta = ET.tostring(clean_xml, encoding="ascii")
     ch_map = map_old_new_chs(ome_string, omexmlClass.OMEXML(meta))
     # print(ch_map)
 
