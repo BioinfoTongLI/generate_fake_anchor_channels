@@ -2,12 +2,15 @@
 
 // Copyright (C) 2020 Tong LI <tongli.bioinfo@protonmail.com>
 
-params.ome_tiffs = "/nfs/team283_imaging/AC_LNG/0_CARTANA_ISS_I2B-panel/OB01011_FF_Lung_CARTANA_I2B_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"
-params.out_dir = "./"
+/*params.ome_tiffs = "/nfs/team283_imaging/AC_LNG/0_CARTANA_ISS_I2B-panel/OB01011_FF_Lung_CARTANA_I2B_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"*/
+params.ome_tiffs = "/nfs/team283_imaging/0HarmonyStitched/JSP_HSS/playground_Jun/OB10036_FF_Brain_CARTANA_N1C_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"
+params.out_dir = "./out"
+params.skip_raw_pyramid = true
 
 process fake_anchor_chs {
     echo true
-    container "./env.sif"
+    container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/fake_anchor.sif"
+    /*container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/img-bftools.sif"*/
 
     input:
     file ome_tif from channel.fromPath(params.ome_tiffs)
@@ -23,7 +26,10 @@ process fake_anchor_chs {
 
 process build_pyramid_raw {
     container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/img-bftools.sif"
-    publishDir "./out", mode:"copy"
+    publishDir params.out_dir, mode:"copy"
+
+    when:
+    !params.skip_raw_pyramid
 
     input:
     file tif from tif_with_anchor_for_pyramid
@@ -42,7 +48,7 @@ process build_pyramid_raw {
 process opt_flow_register {
     echo true
     container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/opt-reg.sif"
-    /*publishDir "./out", mode:"copy"*/
+    /*publishDir params.out_dir, mode:"copy"*/
 
     input:
     file tif from tif_with_anchor
@@ -58,7 +64,7 @@ process opt_flow_register {
 
 process build_pyramid {
     container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/img-bftools.sif"
-    publishDir "./out", mode:"copy"
+    publishDir params.out_dir, mode:"copy"
 
     input:
     file tif from opt_registered
