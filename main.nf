@@ -11,6 +11,8 @@ process fake_anchor_chs {
     echo true
     container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/fake_anchor.sif"
     /*container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/img-bftools.sif"*/
+    storeDir params.out_dir
+
 
     input:
     file ome_tif from channel.fromPath(params.ome_tiffs)
@@ -49,6 +51,7 @@ process opt_flow_register {
     echo true
     container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/opt-reg.sif"
     /*publishDir params.out_dir, mode:"copy"*/
+    storeDir params.out_dir
 
     input:
     file tif from tif_with_anchor
@@ -62,20 +65,44 @@ process opt_flow_register {
     """
 }
 
-process build_pyramid {
-    container "/nfs/team283_imaging/0Misc/ImageAnalysisTools/img-bftools.sif"
-    publishDir params.out_dir, mode:"copy"
+process convert_to_zarr {
+    /*echo true*/
+    container "gitlab-registry.internal.sanger.ac.uk/tl10/img-bftools"
+    /*container "gitlab-registry.internal.sanger.ac.uk/olatarkowska/img-bioformats2raw:0.3.0"*/
+    /*storeDir params.out_dir + "/raws"*/
+    /*publishDir params.out_dir + "/tmp", mode:"copy"*/
 
     input:
-    file tif from opt_registered
+    file img from opt_registered
 
     output:
-    tuple val(stem), file("${stem}*pyramid*.ome.tif")
+    tuple val(stem), file("${stem}") into raws
 
     script:
-    stem = tif.baseName
+    stem = img.baseName
+    """
+    #/opt/bioformats2raw/bin/bioformats2raw --max_workers 15 --resolutions 7 --tile_width 512 --tile_height 512 $img "${stem}.zarr"
+    /bf2raw/bioformats2raw-0.2.6/bin/bioformats2raw --dimension-order XYZCT --max_workers 15 --resolutions 7 --tile_width 512 --tile_height 512 $img "${stem}"
+    """
+}
+
+
+process zarr_to_ome_tiff {
+    /*echo true*/
+    container "gitlab-registry.internal.sanger.ac.uk/tl10/img-bftools"
+    /*container "gitlab-registry.internal.sanger.ac.uk/olatarkowska/img-raw2ometiff:0.1.1"*/
+    storeDir params.out_dir + "/ome_tiffs"
+
+    input:
+    tuple val(stem), file(zarr) from raws
+
+    output:
+    tuple val(stem), path("${stem}.ome.tif") into ome_tiffs
+
+    script:
     """
     export _JAVA_OPTIONS="-Xmx128g"
-    /bftools/bftools/bfconvert -pyramid-resolutions 5 -pyramid-scale 2 ${tif} ${stem}_pyramid_5.ome.tif
+    #/opt/raw2ometiff-0.1.1-SNAPSHOT/bin/raw2ometiff --max_workers 12 --debug "${zarr}" "${stem}.ome.tif"
+    /raw2tif/raw2ometiff-0.2.8/bin/raw2ometiff --max_workers 12 --debug "${zarr}" "${stem}.ome.tif"
     """
 }
