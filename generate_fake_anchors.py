@@ -24,6 +24,13 @@ def sort_channels(node, tag="ID"):
     return sorted(node, key=lambda child: int(child.get(tag).split(":")[-1]))
 
 
+def normalize(stack, quantile):
+    img_min = np.nanmin(stack, axis=(0, 1), keepdims=True)
+    img_max = np.nanpercentile(stack, q=quantile, axis=(0, 1), keepdims=True)
+    normalized = (stack - img_min) / (img_max - img_min)
+    return normalized
+
+
 def update_ome_xml_for_fake_channels(ome_string):
     md = omexmlClass.OMEXML(ome_string)
     pixels = md.image().Pixels
@@ -39,17 +46,16 @@ def update_ome_xml_for_fake_channels(ome_string):
             last_cycle_ind = current_cycle_ind
 
         if last_cycle_ind != current_cycle_ind:
-            pixels.append_channel(i + n_ch_added, "c0%s"%last_cycle_ind + " anchor")
+            pixels.append_channel(i + n_ch_added, "c0%s" % last_cycle_ind + " anchor")
             n_ch_added += 1
 
-        pixels.Channel(i).set_ID("Channel:0:"+str(i + n_ch_added))
+        pixels.Channel(i).set_ID("Channel:0:" + str(i + n_ch_added))
 
         # for k in pixels.Channel(i).node.attrib:
-            # print(k, pixels.Channel(i).node.get(k))
+        # print(k, pixels.Channel(i).node.get(k))
         # print(i, pixels.Channel(i).node.attrib)
         last_cycle_ind = current_cycle_ind
-    pixels.append_channel(origin_n_ch + n_ch_added,
-            "c0%s"%last_cycle_ind + " anchor")
+    pixels.append_channel(origin_n_ch + n_ch_added, "c0%s" % last_cycle_ind + " anchor")
     pixels.populate_TiffData()
     return md
 
@@ -57,26 +63,29 @@ def update_ome_xml_for_fake_channels(ome_string):
 def xml_cleanup(ome_xml_str):
     ns = {"ome": "http://www.openmicroscopy.org/Schemas/OME/2016-06"}
     root = ET.ElementTree(ET.fromstring(ome_xml_str)).getroot()
-    pixels_et = root[2][3] # Image -> Pixels
+    pixels_et = root[2][3]  # Image -> Pixels
     all_channels = pixels_et.findall("ome:Channel", ns)
     all_tiffdata = pixels_et.findall("ome:TiffData", ns)
     pixel_attrs = pixels_et.attrib
-    pixels_et.clear() # clear the Pixel
+    pixels_et.clear()  # clear the Pixel
     pixels_et.attrib = pixel_attrs
     for ch in sort_channels(all_channels):
         pixels_et.append(ch)
     for td in all_tiffdata:
         pixels_et.append(td)
-    root[3].clear() # remove the pyramid metadata
+    root[3].clear()  # remove the pyramid metadata
     return root
 
 
 def map_old_new_chs(ome_string, new_md):
     ori_ch_names = omexmlClass.OMEXML(ome_string).image().Pixels.get_channel_names()
-    ori_ch_names_i = {ch : i for i, ch in enumerate(ori_ch_names)}
+    ori_ch_names_i = {ch: i for i, ch in enumerate(ori_ch_names)}
 
     pixels = new_md.image().Pixels
-    new_i_ch_name = {int(pixels.Channel(i).node.get("ID").split(":")[-1]) : pixels.Channel(i).Name for i in range(pixels.get_channel_count())}
+    new_i_ch_name = {
+        int(pixels.Channel(i).node.get("ID").split(":")[-1]): pixels.Channel(i).Name
+        for i in range(pixels.get_channel_count())
+    }
 
     maps = {}
     for i in sorted(new_i_ch_name.keys()):
@@ -90,8 +99,8 @@ def map_old_new_chs(ome_string, new_md):
 
 @pysnooper.snoop()
 def main(args):
-    ignore_dapi=True
-    with tf.TiffFile(args.ome_tif, "r",  is_ome=True) as fh:
+    ignore_dapi = True
+    with tf.TiffFile(args.ome_tif, "r", is_ome=True) as fh:
         print(fh)
         ome_string = fh.ome_metadata
         shape = fh.pages[0].shape
@@ -110,17 +119,19 @@ def main(args):
         known_anchor_cyc = args.known_anchor.split(" ")[0]
 
     writer = tf.TiffWriter(new_name, bigtiff=True)
-    with tf.TiffFile(args.ome_tif, "r",  is_ome=True) as fh:
+    with tf.TiffFile(args.ome_tif, "r", is_ome=True) as fh:
         for i in sorted(ch_map.keys()):
             print(i, ch_map[i])
             old_ind = ch_map[i][1]
             cur_ch_name = ch_map[i][0]
             if old_ind is not None:
-                tmp_array = fh.pages[old_ind].asarray()
-                writer.save(tmp_array, photometric='minisblack', description=meta)
+                tmp_array = normalize(fh.pages[old_ind].asarray().squeeze(), 98)
+                writer.save(tmp_array, photometric="minisblack", description=meta)
 
-                if cur_ch_name.startswith(known_anchor_cyc) and \
-                        cur_ch_name != args.known_anchor:
+                if (
+                    cur_ch_name.startswith(known_anchor_cyc)
+                    and cur_ch_name != args.known_anchor
+                ):
                     continue
 
                 # print(fh.pages[old_ind])
@@ -132,7 +143,7 @@ def main(args):
             else:
                 print("save anchor, and re-intialize anchor image")
                 # print(tmp_anchor.shape)
-                writer.save(tmp_anchor, photometric='minisblack', description=meta)
+                writer.save(tmp_anchor, photometric="minisblack", description=meta)
 
                 tmp_anchor = np.zeros(shape, dtype=np.uint16)
 
@@ -142,8 +153,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-ome_tif", type=str,
-            required=True)
+    parser.add_argument("-ome_tif", type=str, required=True)
     parser.add_argument("-known_anchor", type=str, default=None)
 
     args = parser.parse_args()

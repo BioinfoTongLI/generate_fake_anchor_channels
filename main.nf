@@ -2,10 +2,12 @@
 
 // Copyright (C) 2020 Tong LI <tongli.bioinfo@protonmail.com>
 
-/*params.ome_tiffs = "/nfs/team283_imaging/AC_LNG/0_CARTANA_ISS_I2B-panel/OB01011_FF_Lung_CARTANA_I2B_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"*/
-params.ome_tiffs = "/nfs/team283_imaging/0HarmonyStitched/JSP_HSS/playground_Jun/OB10036_FF_Brain_CARTANA_N1C_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"
-params.out_dir = "./out"
+params.ome_tiffs = "/nfs/team283_imaging/AC_LNG/0_CARTANA_ISS_I2B-panel/OB01011_FF_Lung_CARTANA_I2B_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"
+/*params.ome_tiffs = "/nfs/team283_imaging/0HarmonyStitched/JSP_HSS/playground_Jun/OB10036_FF_Brain_CARTANA_N1C_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"*/
+/*params.ome_tiffs = "/nfs/team283_imaging/0HarmonyStitched/JSP_HSS/playground_Jun/OB10037_FF_Brain_CARTANA_N1234F_Cycles0123456_x20/feature_based_reg_DAPI/out.tif"*/
+params.out_dir = "./out_lung"
 params.skip_raw_pyramid = true
+
 
 process fake_anchor_chs {
     echo true
